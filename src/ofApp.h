@@ -41,9 +41,10 @@ public:
     void toggleSelectTerrain();
     void setCameraTarget();
     bool  doPointSelection();
-    bool  doPointSelectionForPath();
+    ofVec3f  doPointSelectionForPath();
     void drawBox(const Box &box);
     Box meshBounds(const ofMesh &);
+    Box meshBoundsRover(const vector<ofMesh> &);
     void subDivideBox8(const Box &b, vector<Box> & boxList);
     bool mouseIntersectPlane(ofVec3f planePoint, ofVec3f planeNorm, ofVec3f &point);
     
@@ -57,6 +58,8 @@ public:
     ofxAssimpModelLoader mars, rover;
     ofLight light;
     Box boundingBox;
+    Box roverBoundingBox;
+//    vector<Box> roverBoundingBox;
     vector<vector<Box>> subLevelBoxes;
     vector<TreeNode> sublevelMeshes;
     vector<ofColor> colors;
@@ -65,19 +68,26 @@ public:
     bool bWireframe;
     bool bDisplayPoints;
     bool bPointSelected;
+    bool resetRoverPosition;
+    bool enterKeyPressed;
     bool bPointSelectedNotWithMesh;
     ofVec3f selectedPointWithoutMesh;
-    vector<ofVec3f> pathPoints;
+    vector<ofPoint> pathPoints;
+    vector<ofPoint> subPoints;
+    bool pathChanged;
     bool bRoverLoaded;
     bool bTerrainSelected;
     bool isDragged;
-    
+    bool checkIfPointExistInSubPath(ofVec3f point);
+    void doPointSelectionForSubPath(ofVec3f start, ofVec3f end, int level);
     void doPointSelectionWithMesh(const ofMesh mesh);
     ofMesh meshDataForMars;
+    vector<ofMesh> meshDataForRover;
+    bool roverSelected;
     
     ofVec3f selectedPoint;
     ofVec3f intersectPoint;
-    ofPath path;
+    ofPolyline path;
     int maxLevel = 10;
     uint64_t startTime, endTime;
     const float selectionRange = 4.0;

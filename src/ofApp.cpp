@@ -59,8 +59,11 @@ void ofApp::setup(){
     boundingBox = meshBounds(meshDataForMars);
     isDragged = false;
     bShiftKeyDown = false;
-    path = ofPath();
-    
+    pathChanged = false;
+    path = ofPolyline();
+    roverSelected = false;
+    resetRoverPosition = false;
+    enterKeyPressed =false;
     //Add colors to the vector
     colors.push_back(ofColor::yellow);
     colors.push_back(ofColor::green);
@@ -92,6 +95,15 @@ void ofApp::draw(){
         if (bRoverLoaded) {
             rover.drawWireframe();
             if (!bTerrainSelected) drawAxis(rover.getPosition());
+            /*if(roverSelected){
+                ofNoFill();
+                ofSetColor(ofColor::white);
+                drawBox(roverBoundingBox);
+//                for(int i =0; i<roverBoundingBox.size(); i++){
+////                    drawBox(roverBoundingBox[i]);
+//                }
+                
+            }*/
         }
         if (bTerrainSelected) drawAxis(ofVec3f(0, 0, 0));
     }
@@ -102,6 +114,15 @@ void ofApp::draw(){
         if (bRoverLoaded) {
             rover.drawFaces();
             if (!bTerrainSelected) drawAxis(rover.getPosition());
+            /*if(roverSelected){
+                ofNoFill();
+                ofSetColor(ofColor::white);
+                drawBox(roverBoundingBox);
+//                for(int i =0; i<roverBoundingBox.size(); i++){
+////                    drawBox(roverBoundingBox[i]);
+//                }
+            }*/
+            
         }
         if (bTerrainSelected) drawAxis(ofVec3f(0, 0, 0));
     }
@@ -123,10 +144,38 @@ void ofApp::draw(){
     }
     if(pathPoints.size()>0){
         for(int i=0; i<pathPoints.size(); i++){
-            ofSetColor(ofColor::yellow);
+            ofSetColor(ofColor::gold);
             ofDrawSphere(pathPoints[i], .1);
         }
+        if(pathPoints.size()>1){
+            ofSetColor(ofColor::yellow);
+            path = ofPolyline(pathPoints);
+            path.draw();
+        }
     }
+    if(pathPoints.size()>0){
+        for(int i=0; i<pathPoints.size(); i++){
+            ofSetColor(ofColor::yellow);
+            ofDrawSphere(pathPoints[i], .1);
+            if(pathChanged){
+                if(i>0){
+                    doPointSelectionForSubPath(pathPoints[i-1],pathPoints[i], 0);
+                }
+                subPoints.push_back(pathPoints[i]);
+            }
+        }
+        pathChanged = false;
+        if(pathPoints.size()>1){
+            ofSetColor(ofColor::mistyRose);
+            path = ofPolyline(subPoints);
+            path.draw();
+            cout<<" Number of subPoints : "<<subPoints.size()<<endl;
+        }
+    }
+    
+    
+        
+    
     /*
      Professors Code to Draw the point for the given mesh. Uncomment this to check the draw functionality.
      
@@ -139,21 +188,21 @@ void ofApp::draw(){
     ofSetColor(ofColor::white);
     drawBox(boundingBox);
     int colorsSize = colors.size();
-    for(int i =0; i<subLevelBoxes.size(); i++){
-        //        if(i%2==0)
-        //            ofSetColor(ofColor::red);
-        //        else
-        //            ofSetColor(ofColor::green);
-        ofSetColor(colors[i%colorsSize]);
-        for (int j=0; j < subLevelBoxes[i].size(); j++){
-            drawBox(subLevelBoxes[i][j]);
-        }
-    }
+//    for(int i =0; i<subLevelBoxes.size(); i++){
+//        //        if(i%2==0)
+//        //            ofSetColor(ofColor::red);
+//        //        else
+//        //            ofSetColor(ofColor::green);
+//        ofSetColor(colors[i%colorsSize]);
+//        for (int j=0; j < subLevelBoxes[i].size(); j++){
+//            drawBox(subLevelBoxes[i][j]);
+//        }
+//    }
     
     ofPopMatrix();
     cam.end();
     uint64_t et = ofGetSystemTimeMicros();
-    cout<<"Time elapsed in entire draw function : "<<et-st<<endl;
+//    cout<<"Time elapsed in entire draw function : "<<et-st<<endl;
 }
 
 //
@@ -226,9 +275,18 @@ void ofApp::keyPressed(int key) {
             bCtrlKeyDown = true;
             break;
         case OF_KEY_SHIFT:
+            if(enterKeyPressed){
+                resetRoverPosition = true;
+            }
             bShiftKeyDown = true;
             break;
         case OF_KEY_DEL:
+            break;
+        case OF_KEY_RETURN:
+            if(bShiftKeyDown){
+                resetRoverPosition = true;
+            }
+            enterKeyPressed = true;
             break;
         default:
             break;
@@ -261,9 +319,16 @@ void ofApp::keyReleased(int key) {
         case OF_KEY_SHIFT:
             bShiftKeyDown = false;
             break;
+        case OF_KEY_RETURN:
+            enterKeyPressed = false;
         default:
             break;
-            
+    }
+    if(resetRoverPosition){
+        if(pathPoints.size()>0){
+            rover.setPosition(subPoints[0].x, subPoints[0].y, subPoints[0].z);
+        }
+        resetRoverPosition = false;
     }
 }
 
@@ -329,6 +394,37 @@ Box ofApp::meshBounds(const ofMesh & mesh) {
     return Box(Vector3(min.x, min.y, min.z), Vector3(max.x, max.y, max.z));
 }
 
+// return a Mesh Bounding Box for the rover
+//
+Box ofApp::meshBoundsRover(const vector<ofMesh> & rover) {
+//    ofVec3f v = cam.worldToScreen(cam.cameraToWorld(rover[0].getVertex(0)));
+    ofVec3f v = rover[0].getVertex(0);
+    ofVec3f max = v;
+    ofVec3f min = v;
+    
+    for(int j =0; j<rover.size(); j++){
+        ofMesh mesh = rover[j];
+        int n = mesh.getNumVertices();
+        for (int i = 0; i < n; i++) {
+//            v = cam.worldToScreen(cam.cameraToWorld(mesh.getVertex(i)));
+            
+            v = mesh.getVertex(i);
+            if (v.x > max.x) max.x = v.x;
+            else if (v.x < min.x) min.x = v.x;
+            
+            if (v.y > max.y) max.y = v.y;
+            else if (v.y < min.y) min.y = v.y;
+            
+            if (v.z > max.z) max.z = v.z;
+            else if (v.z < min.z) min.z = v.z;
+        }
+    }
+    
+    max = cam.worldToScreen(cam.cameraToWorld(max));
+    min = cam.worldToScreen(cam.cameraToWorld(min));
+    return Box(Vector3(min.x, min.y, min.z), Vector3(max.x, max.y, max.z));
+}
+
 //  Subdivide a Box into eight(8) equal size boxes, return them in boxList;
 //
 void ofApp::subDivideBox8(const Box &box, vector<Box> & boxList) {
@@ -379,7 +475,9 @@ void ofApp::mouseReleased(int x, int y, int button) {
         Ray ray = Ray(Vector3(rayPoint.x, rayPoint.y, rayPoint.z),
                       Vector3(rayDir.x, rayDir.y, rayDir.z));
         if(boundingBox.intersect(ray, -100, 100)){
-            doPointSelectionForPath();
+            pathPoints.push_back(doPointSelectionForPath());
+            pathChanged = true;
+            subPoints.clear();
         }
     }else{
         if(!isDragged){
@@ -394,6 +492,15 @@ void ofApp::mouseReleased(int x, int y, int button) {
             rayDir.normalize();
             Ray ray = Ray(Vector3(rayPoint.x, rayPoint.y, rayPoint.z),
                           Vector3(rayDir.x, rayDir.y, rayDir.z));
+            /*if(bRoverLoaded){
+                if(roverBoundingBox.intersect(ray, 100, -100)){
+                    roverSelected = true;
+                    cout<<"Rover is Selected"<<endl;
+                }else{
+                    roverSelected = false;
+                    cout<<"Rover is not Selected"<<endl;
+                }
+            }*/
             if(boundingBox.intersect(ray, -100, 100)){
                 helperSubLevelBoundingBoxes(boundingBox, 1, ray, meshDataForMars);
                 doPointSelection();
@@ -402,18 +509,17 @@ void ofApp::mouseReleased(int x, int y, int button) {
     }
     isDragged = false;
     endTime = ofGetSystemTimeMicros();
-    cout<<endl<<endl<<"Time Elapsed to find all the sub level bounding boxes : "<<endTime-startTime<<endl<<endl;
+//    cout<<endl<<endl<<"Time Elapsed to find all the sub level bounding boxes : "<<endTime-startTime<<endl<<endl;
 }
 //create path points using the clicks;
-bool ofApp::doPointSelectionForPath(){
-    
+ofVec3f ofApp::doPointSelectionForPath(){
     ofMesh mesh = mars.getMesh(0);
     int n = mesh.getNumVertices();
     float nearestDistance = 0;
     int nearestIndex = 0;
     ofVec3f pointSelected;
     
-    bPointSelectedNotWithMesh = false;
+    bool pointFound = false;
     
     ofVec2f mouse(mouseX, mouseY);
     vector<ofVec3f> selection;
@@ -428,14 +534,14 @@ bool ofApp::doPointSelectionForPath(){
         float distance = posScreen.distance(mouse);
         if (distance < selectionRange) {
             selection.push_back(vert);
-            bPointSelectedNotWithMesh = true;
+            pointFound = true;
         }
     }
     
     //  if we found selected points, we need to determine which
     //  one is closest to the eye (camera). That one is our selected target.
     //
-    if (bPointSelectedNotWithMesh) {
+    if (pointFound) {
         float distance = 0;
         for (int i = 0; i < selection.size(); i++) {
             ofVec3f point =  cam.worldToCamera(selection[i]);
@@ -451,8 +557,53 @@ bool ofApp::doPointSelectionForPath(){
             }
         }
     }
-    pathPoints.push_back(pointSelected);
-    return bPointSelectedNotWithMesh;
+    return pointSelected;
+}
+
+
+//create subPathofPoints using the path
+
+void ofApp::doPointSelectionForSubPath(ofVec3f start, ofVec3f end, int level){
+    if(level > 5 || start == end)
+        return;
+    ofMesh mesh = mars.getMesh(0);
+    int n = mesh.getNumVertices();
+    float nearestDistance = numeric_limits<float>::max();
+    int nearestIndex = -1;
+    ofVec3f pointSelected;
+    
+    ofVec3f mid = (start+end)/2;
+    
+    for (int i = 0; i < n; i++) {
+        ofVec3f vert = mesh.getVertex(i);
+        float distance = mid.distance(vert);
+        if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestIndex = i;
+        }
+    }
+    
+    //  if we found selected points, we need to determine which
+    //  one is closest to the eye (camera). That one is our selected target.
+    //
+    
+    if(start.distance(end)>nearestDistance && !checkIfPointExistInSubPath(mesh.getVertex(nearestIndex))){
+        selectedPoint = mesh.getVertex(nearestIndex);
+        doPointSelectionForSubPath(start, selectedPoint, level+1);
+        subPoints.push_back(ofPoint(selectedPoint.x, selectedPoint.y, selectedPoint.z));
+        doPointSelectionForSubPath(selectedPoint, end, level+1);
+    }else{
+        return;
+    }
+}
+
+bool ofApp::checkIfPointExistInSubPath(ofVec3f point){
+    for(int i=0; i<subPoints.size(); i++){
+        if(point == subPoints[i]){
+            return true;
+        }
+    }
+    return false;
 }
 
 //code helps in creating the sub level bounding boxes
@@ -721,6 +872,14 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
         rover.setScale(.005, .005, .005);
         rover.setPosition(point.x, point.y, point.z);
         bRoverLoaded = true;
+        for(int i =0; i<rover.getNumMeshes(); i++){
+            meshDataForRover.push_back(rover.getMesh(i));
+//            roverBoundingBox.push_back(meshBounds(meshDataForRover[i]));
+        }
+//        roverBoundingBox = meshBounds(meshDataForRover[2]);
+        
+//        roverBoundingBox = meshBoundsRover(meshDataForRover);
+//        roverSelected = true;
     }
     else cout << "Error: Can't load model" << dragInfo.files[0] << endl;
 }
