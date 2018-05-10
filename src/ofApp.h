@@ -84,7 +84,10 @@ public:
     ofMesh meshDataForMars;
     vector<ofMesh> meshDataForRover;
     bool roverSelected;
-    
+    int roverSpeed;
+    bool startRover;
+    int roverPosition;
+    int frameIndex;
     ofVec3f selectedPoint;
     ofVec3f intersectPoint;
     ofPolyline path;

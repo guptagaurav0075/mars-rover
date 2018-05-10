@@ -63,6 +63,10 @@ void ofApp::setup(){
     path = ofPolyline();
     roverSelected = false;
     resetRoverPosition = false;
+    startRover = false;
+    roverPosition = 0;
+    frameIndex =0;
+    roverSpeed=2;
     enterKeyPressed =false;
     //Add colors to the vector
     colors.push_back(ofColor::yellow);
@@ -133,7 +137,17 @@ void ofApp::draw(){
         ofSetColor(ofColor::green);
         mars.drawVertices();
     }
-    
+    if(startRover){
+        frameIndex++;
+        if(frameIndex%roverSpeed == 0){
+            roverPosition++;
+            if(roverPosition==subPoints.size()){
+                startRover = false;
+            }else{
+                rover.setPosition(subPoints[roverPosition].x,subPoints[roverPosition].y,subPoints[roverPosition].z);
+            }
+        }
+    }
     
     
     // highlight selected point (draw sphere around selected point)
@@ -329,7 +343,9 @@ void ofApp::keyReleased(int key) {
             rover.setPosition(subPoints[0].x, subPoints[0].y, subPoints[0].z);
         }
         resetRoverPosition = false;
+        startRover = true;
     }
+    
 }
 
 
