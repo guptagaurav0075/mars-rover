@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ofMain.h"
+#include "ofxGui.h"
 #include  "ofxAssimpModelLoader.h"
 #include "box.h"
 #include "ray.h"
@@ -55,6 +56,10 @@ public:
     void fetchMeshDataForBox(Box box,ofMesh &mesh, ofMesh verticesList);
     void setSelectedPoint(const Box box);
     ofEasyCam cam;
+    vector<ofEasyCam> cameras;
+    int cameraIndex;
+    bool changeCameraRequest;
+    void setCamerasAfterRoverLoaded();
     ofxAssimpModelLoader mars, rover;
     ofLight light;
     Box boundingBox;
@@ -95,4 +100,7 @@ public:
     uint64_t startTime, endTime;
     const float selectionRange = 4.0;
     bool bShiftKeyDown;
+    
+    ofxIntSlider speedSlider;
+    ofxPanel gui;
 };

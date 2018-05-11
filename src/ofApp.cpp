@@ -48,6 +48,7 @@ void ofApp::setup(){
     cam.disableMouseInput();
     ofEnableSmoothing();
     ofEnableDepthTest();
+    changeCameraRequest = false;
     
     // setup rudimentary lighting
     //
@@ -74,23 +75,41 @@ void ofApp::setup(){
     colors.push_back(ofColor::dimGrey);
     colors.push_back(ofColor::indianRed);
     colors.push_back(ofColor::skyBlue);
+    
+    gui.setup();
+    gui.setTextColor(ofColor::white);
+    gui.setFillColor(ofColor::grey);
+    gui.add(speedSlider.setup("Rover Speed", 2, 1, 10));
+    speedSlider.setTextColor(ofColor::blue);
+    speedSlider.setFillColor(ofColor::green);
+   
 }
 
 //--------------------------------------------------------------
 // incrementally update scene (animation)
 //
 void ofApp::update() {
-    
+    int tempSpeed = 11-speedSlider;
+    if(roverSpeed!=tempSpeed){
+        roverSpeed = tempSpeed;
+        cout<<"Speed Variable is :"<<roverSpeed<<endl;
+    }
+    /*if(cameraIndex==1)
+    {
+        cam.setTarget(rover.getPosition()+10);
+    }*/
 }
 //--------------------------------------------------------------
 void ofApp::draw(){
     uint64_t st = ofGetSystemTimeMicros();
+    ofSetColor(ofColor::white);
     //    ofBackgroundGradient(ofColor(20), ofColor(0));   // pick your own background
     ofBackground(ofColor::black);
     //        cout << ofGetFrameRate() << endl;
     
     
     cam.begin();
+    
     ofPushMatrix();
     if (bWireframe) {                    // wireframe mode  (include axis)
         ofDisableLighting();
@@ -99,15 +118,6 @@ void ofApp::draw(){
         if (bRoverLoaded) {
             rover.drawWireframe();
             if (!bTerrainSelected) drawAxis(rover.getPosition());
-            /*if(roverSelected){
-                ofNoFill();
-                ofSetColor(ofColor::white);
-                drawBox(roverBoundingBox);
-//                for(int i =0; i<roverBoundingBox.size(); i++){
-////                    drawBox(roverBoundingBox[i]);
-//                }
-                
-            }*/
         }
         if (bTerrainSelected) drawAxis(ofVec3f(0, 0, 0));
     }
@@ -118,14 +128,6 @@ void ofApp::draw(){
         if (bRoverLoaded) {
             rover.drawFaces();
             if (!bTerrainSelected) drawAxis(rover.getPosition());
-            /*if(roverSelected){
-                ofNoFill();
-                ofSetColor(ofColor::white);
-                drawBox(roverBoundingBox);
-//                for(int i =0; i<roverBoundingBox.size(); i++){
-////                    drawBox(roverBoundingBox[i]);
-//                }
-            }*/
             
         }
         if (bTerrainSelected) drawAxis(ofVec3f(0, 0, 0));
@@ -161,11 +163,11 @@ void ofApp::draw(){
             ofSetColor(ofColor::gold);
             ofDrawSphere(pathPoints[i], .1);
         }
-        if(pathPoints.size()>1){
+        /*if(pathPoints.size()>1){
             ofSetColor(ofColor::yellow);
             path = ofPolyline(pathPoints);
             path.draw();
-        }
+        }*/
     }
     if(pathPoints.size()>0){
         for(int i=0; i<pathPoints.size(); i++){
@@ -202,19 +204,24 @@ void ofApp::draw(){
     ofSetColor(ofColor::white);
     drawBox(boundingBox);
     int colorsSize = colors.size();
-//    for(int i =0; i<subLevelBoxes.size(); i++){
-//        //        if(i%2==0)
-//        //            ofSetColor(ofColor::red);
-//        //        else
-//        //            ofSetColor(ofColor::green);
-//        ofSetColor(colors[i%colorsSize]);
-//        for (int j=0; j < subLevelBoxes[i].size(); j++){
-//            drawBox(subLevelBoxes[i][j]);
-//        }
-//    }
+    for(int i =0; i<subLevelBoxes.size(); i++){
+        //        if(i%2==0)
+        //            ofSetColor(ofColor::red);
+        //        else
+        //            ofSetColor(ofColor::green);
+        ofSetColor(colors[i%colorsSize]);
+        for (int j=0; j < subLevelBoxes[i].size(); j++){
+            drawBox(subLevelBoxes[i][j]);
+        }
+    }
     
     ofPopMatrix();
     cam.end();
+    
+    speedSlider.setDefaultTextColor(ofColor::white);
+    speedSlider.setDefaultFillColor(ofColor::grey);
+    speedSlider.setBackgroundColor(ofColor::black);
+    gui.draw();
     uint64_t et = ofGetSystemTimeMicros();
 //    cout<<"Time elapsed in entire draw function : "<<et-st<<endl;
 }
@@ -299,6 +306,8 @@ void ofApp::keyPressed(int key) {
         case OF_KEY_RETURN:
             if(bShiftKeyDown){
                 resetRoverPosition = true;
+            }else{
+                changeCameraRequest = true;
             }
             enterKeyPressed = true;
             break;
@@ -342,8 +351,21 @@ void ofApp::keyReleased(int key) {
         if(pathPoints.size()>0){
             rover.setPosition(subPoints[0].x, subPoints[0].y, subPoints[0].z);
         }
+        roverPosition = 0;
         resetRoverPosition = false;
         startRover = true;
+    }
+    if(changeCameraRequest){
+        if(bRoverLoaded){
+            cameraIndex ++;
+            if(cameraIndex==cameras.size()){
+                cameraIndex=0;
+            }
+            cam = cameras[cameraIndex];
+        }
+        changeCameraRequest=false;
+        
+        
     }
     
 }
@@ -892,12 +914,48 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
             meshDataForRover.push_back(rover.getMesh(i));
 //            roverBoundingBox.push_back(meshBounds(meshDataForRover[i]));
         }
+        setCamerasAfterRoverLoaded();
 //        roverBoundingBox = meshBounds(meshDataForRover[2]);
         
 //        roverBoundingBox = meshBoundsRover(meshDataForRover);
 //        roverSelected = true;
     }
     else cout << "Error: Can't load model" << dragInfo.files[0] << endl;
+}
+void ofApp::setCamerasAfterRoverLoaded(){
+    //Set 1st Camera;
+    cameras.push_back(cam);
+    ofEasyCam temp;
+    temp.setPosition(rover.getPosition()+10);
+    temp.setTarget(rover.getPosition());
+    temp.setDistance(10);
+    temp.setNearClip(.1);
+    temp.setFov(65.5);   // approx equivalent to 28mm in 35mm format
+    temp.disableMouseInput();
+    
+    cameras.push_back(temp);
+    ofEasyCam cam3;
+    cam3.setTarget(rover.getPosition());
+    cam3.setDistance(2);
+    cam3.rotate(90, rover.getPosition());
+    cam3.setNearClip(.1);
+    cam3.setFov(65.5);
+    cam3.disableMouseInput();
+    cameras.push_back(cam3);
+    
+    ofEasyCam cam4;
+    ofPoint temp1 = rover.getPosition();
+//    temp1.y = temp1.y-2;
+//    temp1.x = temp1.x;
+    cam4.setDistance(5);
+//    cam4.rotate(180, -rover.getPosition());
+    cam4.setNearClip(.2);
+    cam4.setFov(65.5);
+    cam4.disableMouseInput();
+    cam4.lookAt(rover.getPosition());
+    cam4.setPosition(temp1.x-5, temp1.y, temp1.z+5);
+    cameras.push_back(cam4);
+    
 }
 
 bool ofApp::mouseIntersectPlane(ofVec3f planePoint, ofVec3f planeNorm, ofVec3f &point) {
