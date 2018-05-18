@@ -45,16 +45,21 @@ public:
     ofVec3f  doPointSelectionForPath();
     void drawBox(const Box &box);
     Box meshBounds(const ofMesh &);
-    Box meshBoundsRover(const vector<ofMesh> &);
     void subDivideBox8(const Box &b, vector<Box> & boxList);
     bool mouseIntersectPlane(ofVec3f planePoint, ofVec3f planeNorm, ofVec3f &point);
     
+    
+    void updateCam();
     void helperSubLevelBoundingBoxes(const Box &b, int currentLevel, Ray &ray, ofMesh &mesh);
     int indexOfClosestBoundingBox(vector<Box> & boxList, Ray &ray, const TreeNode tree);
     float checkBoxDistanceFromCenter(const Box & b, Ray &ray);
     void buildTreeNodeForBoxes(vector<Box> &boxes, ofMesh verticesList);
     void fetchMeshDataForBox(Box box,ofMesh &mesh, ofMesh verticesList);
     void setSelectedPoint(const Box box);
+    void checkIfPointSelected();
+    void updateSelectedPoint();
+    bool isPointSelected;
+    int selectedPointIndex;
     ofEasyCam cam;
     vector<ofEasyCam> cameras;
     int cameraIndex;
@@ -64,7 +69,7 @@ public:
     ofLight light;
     Box boundingBox;
     Box roverBoundingBox;
-//    vector<Box> roverBoundingBox;
+
     vector<vector<Box>> subLevelBoxes;
     vector<TreeNode> sublevelMeshes;
     vector<ofColor> colors;
@@ -93,6 +98,12 @@ public:
     bool startRover;
     int roverPosition;
     int frameIndex;
+    bool showPointsOnly;
+    void updateRoverBox(ofVec3f point);
+    bool pKeyPressed;
+    bool moveForwardDirection;
+    bool roverSelectedForDragging;
+    bool isRoverSelected();
     ofVec3f selectedPoint;
     ofVec3f intersectPoint;
     ofPolyline path;
@@ -100,7 +111,8 @@ public:
     uint64_t startTime, endTime;
     const float selectionRange = 4.0;
     bool bShiftKeyDown;
-    
+    bool checkRoverIsOnPath();
+    bool checkRoverProximity(int index, ofVec3f centerPoint);
     ofxIntSlider speedSlider;
     ofxPanel gui;
 };

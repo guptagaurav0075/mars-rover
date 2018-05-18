@@ -32,7 +32,8 @@ public:
     }
     // (t0, t1) is the interval for valid hits
     bool intersect(const Ray &, float t0, float t1) const;
-    
+    Vector3 getMidPointOfBox();
+    float boxArea(){return abs((max().x()-min().x())*(max().y()-min().y())*(max().z()-min().z()));}
     // corners
     Vector3 parameters[2];
     Vector3 min() { return parameters[0]; }

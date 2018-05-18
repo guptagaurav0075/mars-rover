@@ -35,3 +35,7 @@ bool Box::intersect(const Ray &r, float t0, float t1) const {
     tmax = tzmax;
   return ( (tmin < t1) && (tmax > t0) );
 }
+Vector3 Box::getMidPointOfBox(){
+    Vector3 result = Vector3((parameters[0].x()+parameters[1].x())/2,(parameters[0].y()+parameters[1].y())/2, (parameters[0].z()+parameters[1].z())/2);
+    return result;
+}

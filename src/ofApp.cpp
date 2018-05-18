@@ -61,13 +61,19 @@ void ofApp::setup(){
     isDragged = false;
     bShiftKeyDown = false;
     pathChanged = false;
+    moveForwardDirection = true;
     path = ofPolyline();
     roverSelected = false;
+    roverSelectedForDragging = false;
     resetRoverPosition = false;
     startRover = false;
     roverPosition = 0;
     frameIndex =0;
+    selectedPointIndex = -1;
     roverSpeed=2;
+    showPointsOnly = false;
+    isPointSelected = false;
+    pKeyPressed = false;
     enterKeyPressed =false;
     //Add colors to the vector
     colors.push_back(ofColor::yellow);
@@ -142,13 +148,25 @@ void ofApp::draw(){
     if(startRover){
         frameIndex++;
         if(frameIndex%roverSpeed == 0){
-            roverPosition++;
-            if(roverPosition==subPoints.size()){
-                startRover = false;
+            if(moveForwardDirection){
+                roverPosition++;
+                if(roverPosition==subPoints.size()){
+                    startRover = false;
+                }else{
+                    rover.setPosition(subPoints[roverPosition].x,subPoints[roverPosition].y,subPoints[roverPosition].z);
+                    updateRoverBox(subPoints[roverPosition]);
+                }
             }else{
-                rover.setPosition(subPoints[roverPosition].x,subPoints[roverPosition].y,subPoints[roverPosition].z);
+                roverPosition--;
+                if(roverPosition<1){
+                    startRover=false;
+                }else{
+                    rover.setPosition(subPoints[roverPosition].x,subPoints[roverPosition].y,subPoints[roverPosition].z);
+                    updateRoverBox(subPoints[roverPosition]);
+                }
             }
         }
+        updateCam();
     }
     
     
@@ -169,25 +187,28 @@ void ofApp::draw(){
             path.draw();
         }*/
     }
-    if(pathPoints.size()>0){
-        for(int i=0; i<pathPoints.size(); i++){
-            ofSetColor(ofColor::yellow);
-            ofDrawSphere(pathPoints[i], .1);
-            if(pathChanged){
-                if(i>0){
-                    doPointSelectionForSubPath(pathPoints[i-1],pathPoints[i], 0);
+    
+    //DrawThe Path along the plotted points
+    if(!showPointsOnly){
+        if(pathPoints.size()>0){
+            for(int i=0; i<pathPoints.size(); i++){
+                if(pathChanged){
+                    if(i>0){
+                        doPointSelectionForSubPath(pathPoints[i-1],pathPoints[i], 0);
+                    }
+                    subPoints.push_back(pathPoints[i]);
                 }
-                subPoints.push_back(pathPoints[i]);
+            }
+            pathChanged = false;
+            if(pathPoints.size()>1){
+                ofSetColor(ofColor::mistyRose);
+                path = ofPolyline(subPoints);
+                path.draw();
+//                cout<<" Number of subPoints : "<<subPoints.size()<<endl;
             }
         }
-        pathChanged = false;
-        if(pathPoints.size()>1){
-            ofSetColor(ofColor::mistyRose);
-            path = ofPolyline(subPoints);
-            path.draw();
-            cout<<" Number of subPoints : "<<subPoints.size()<<endl;
-        }
     }
+    
     
     
         
@@ -200,6 +221,11 @@ void ofApp::draw(){
      ofDrawSphere(selectedPointWithoutMesh, .1);
      }
      */
+    if(roverSelected){
+        ofNoFill();
+        ofSetColor(ofColor::lightYellow);
+        drawBox(roverBoundingBox);
+    }
     ofNoFill();
     ofSetColor(ofColor::white);
     drawBox(boundingBox);
@@ -261,6 +287,10 @@ void ofApp::keyPressed(int key) {
         case 'c':
             if (cam.getMouseInputEnabled()) cam.disableMouseInput();
             else cam.enableMouseInput();
+            break;
+        case 'p':
+        case 'P':
+            pKeyPressed = true;
             break;
         case 'F':
         case 'f':
@@ -331,7 +361,18 @@ void ofApp::togglePointsDisplay() {
 void ofApp::keyReleased(int key) {
     
     switch (key) {
-            
+        case OF_KEY_UP:
+            moveForwardDirection = true;
+            break;
+        case OF_KEY_DOWN:
+            moveForwardDirection=false;
+            break;
+        case 'p':
+        case 'P':
+            pKeyPressed = false;
+            if(bShiftKeyDown)
+                showPointsOnly = !showPointsOnly;
+            break;
         case OF_KEY_ALT:
             cam.disableMouseInput();
             bAltKeyDown = false;
@@ -348,12 +389,27 @@ void ofApp::keyReleased(int key) {
             break;
     }
     if(resetRoverPosition){
-        if(pathPoints.size()>0){
+        int size = pathPoints.size();
+        if(size>0){
             rover.setPosition(subPoints[0].x, subPoints[0].y, subPoints[0].z);
+            if(roverPosition>0 and roverPosition<subPoints.size()-1){
+                cout<<"Nothing to do, rover position is already set"<<endl;
+            }
+            else{
+                if(moveForwardDirection)
+                    roverPosition=0;
+                else{
+                    roverPosition = subPoints.size()-1;
+                }
+                
+            }
+//            roverPosition = 0;
+            resetRoverPosition = false;
+            updateRoverBox(rover.getPosition());
+            if(size>1)
+                startRover=true;
         }
-        roverPosition = 0;
-        resetRoverPosition = false;
-        startRover = true;
+        
     }
     if(changeCameraRequest){
         if(bRoverLoaded){
@@ -364,10 +420,8 @@ void ofApp::keyReleased(int key) {
             cam = cameras[cameraIndex];
         }
         changeCameraRequest=false;
-        
-        
+        updateCam();
     }
-    
 }
 
 
@@ -432,37 +486,6 @@ Box ofApp::meshBounds(const ofMesh & mesh) {
     return Box(Vector3(min.x, min.y, min.z), Vector3(max.x, max.y, max.z));
 }
 
-// return a Mesh Bounding Box for the rover
-//
-Box ofApp::meshBoundsRover(const vector<ofMesh> & rover) {
-//    ofVec3f v = cam.worldToScreen(cam.cameraToWorld(rover[0].getVertex(0)));
-    ofVec3f v = rover[0].getVertex(0);
-    ofVec3f max = v;
-    ofVec3f min = v;
-    
-    for(int j =0; j<rover.size(); j++){
-        ofMesh mesh = rover[j];
-        int n = mesh.getNumVertices();
-        for (int i = 0; i < n; i++) {
-//            v = cam.worldToScreen(cam.cameraToWorld(mesh.getVertex(i)));
-            
-            v = mesh.getVertex(i);
-            if (v.x > max.x) max.x = v.x;
-            else if (v.x < min.x) min.x = v.x;
-            
-            if (v.y > max.y) max.y = v.y;
-            else if (v.y < min.y) min.y = v.y;
-            
-            if (v.z > max.z) max.z = v.z;
-            else if (v.z < min.z) min.z = v.z;
-        }
-    }
-    
-    max = cam.worldToScreen(cam.cameraToWorld(max));
-    min = cam.worldToScreen(cam.cameraToWorld(min));
-    return Box(Vector3(min.x, min.y, min.z), Vector3(max.x, max.y, max.z));
-}
-
 //  Subdivide a Box into eight(8) equal size boxes, return them in boxList;
 //
 void ofApp::subDivideBox8(const Box &box, vector<Box> & boxList) {
@@ -498,11 +521,52 @@ void ofApp::subDivideBox8(const Box &box, vector<Box> & boxList) {
 //--------------------------------------------------------------
 void ofApp::mouseDragged(int x, int y, int button) {
     isDragged = true;
+    ofVec3f mouse(mouseX, mouseY);
+    ofVec3f rayPoint = cam.screenToWorld(mouse);
+    ofVec3f rayDir = rayPoint - cam.getPosition();
+    rayDir.normalize();
+    Ray ray = Ray(Vector3(rayPoint.x, rayPoint.y, rayPoint.z),
+                  Vector3(rayDir.x, rayDir.y, rayDir.z));
+    
+    if(bShiftKeyDown and pathPoints.size()>0){
+        if(boundingBox.intersect(ray, -100, 100)){
+            ofVec3f curr =doPointSelectionForPath();
+            if(isPointSelected){
+                pathPoints[selectedPointIndex] = curr;
+            }else{
+                int tempSelectedPoint = -1;
+                float tempSelectedDistance = 0.11;
+                for(int i =0; i<pathPoints.size(); i++){
+                    if(pathPoints[i].distance(curr)<tempSelectedDistance){
+                        tempSelectedPoint=i;
+                        selectedPointIndex = i;
+                        isPointSelected = true;
+                        subPoints.clear();
+                        pathChanged = true;
+                    }
+                }
+            }
+        }
+    }
+    if(roverSelectedForDragging){
+        if(boundingBox.intersect(ray, -100, 100)){
+            ofVec3f curr =doPointSelectionForPath();
+            rover.setPosition(curr[0], curr[1], curr[2]);
+            checkRoverIsOnPath();
+            updateRoverBox(curr);
+        }
+    }
+    if(!isPointSelected and bRoverLoaded){
+        if(isRoverSelected() and !roverSelectedForDragging){
+            roverSelectedForDragging = true;
+            roverSelected = true;
+        }
+    }
 }
 
 //--------------------------------------------------------------
 void ofApp::mouseReleased(int x, int y, int button) {
-    if(bShiftKeyDown){
+    if(bShiftKeyDown and !isDragged){
         subLevelBoxes.clear();
         sublevelMeshes.clear();
         
@@ -517,8 +581,7 @@ void ofApp::mouseReleased(int x, int y, int button) {
             pathChanged = true;
             subPoints.clear();
         }
-    }else{
-        if(!isDragged){
+    }else if(!isDragged){
             bPointSelected = false;
             bPointSelectedNotWithMesh=false;
             subLevelBoxes.clear();
@@ -530,25 +593,62 @@ void ofApp::mouseReleased(int x, int y, int button) {
             rayDir.normalize();
             Ray ray = Ray(Vector3(rayPoint.x, rayPoint.y, rayPoint.z),
                           Vector3(rayDir.x, rayDir.y, rayDir.z));
-            /*if(bRoverLoaded){
-                if(roverBoundingBox.intersect(ray, 100, -100)){
-                    roverSelected = true;
-                    cout<<"Rover is Selected"<<endl;
-                }else{
-                    roverSelected = false;
-                    cout<<"Rover is not Selected"<<endl;
-                }
-            }*/
+            
             if(boundingBox.intersect(ray, -100, 100)){
+                if(bRoverLoaded){
+                    ofVec3f max = doPointSelectionForPath()+roverBoundingBox.boxArea();
+                    ofVec3f min = doPointSelectionForPath()-roverBoundingBox.boxArea();
+                    if(roverBoundingBox.intersect(ray, -100, 100)){
+                        roverSelected = !roverSelected;
+                    }else{
+                        roverSelected =false;
+                    }
+                }
                 helperSubLevelBoundingBoxes(boundingBox, 1, ray, meshDataForMars);
                 doPointSelection();
             }
+        }else{
+            roverSelected = false;
         }
-    }
+    
+    isPointSelected = false;
+    roverSelectedForDragging = false;
     isDragged = false;
     endTime = ofGetSystemTimeMicros();
 //    cout<<endl<<endl<<"Time Elapsed to find all the sub level bounding boxes : "<<endTime-startTime<<endl<<endl;
 }
+bool ofApp::isRoverSelected(){
+    if(bRoverLoaded){
+        /**
+
+         ofVec3f max = doPointSelectionForPath()+roverBoundingBox.boxArea();
+         ofVec3f min = doPointSelectionForPath()-roverBoundingBox.boxArea();
+         if((rover.getPosition()[0]<max[0] and rover.getPosition()[1]<max[1] and rover.getPosition()[2]<max[2]) and (rover.getPosition()[0]>min[0] and rover.getPosition()[1]>min[1] and rover.getPosition()[2]>min[2])){
+         return true;
+         }
+         */
+        bPointSelected = false;
+        bPointSelectedNotWithMesh=false;
+        subLevelBoxes.clear();
+        sublevelMeshes.clear();
+        
+        ofVec3f mouse(mouseX, mouseY);
+        ofVec3f rayPoint = cam.screenToWorld(mouse);
+        ofVec3f rayDir = rayPoint - cam.getPosition();
+        rayDir.normalize();
+        Ray ray = Ray(Vector3(rayPoint.x, rayPoint.y, rayPoint.z),
+                      Vector3(rayDir.x, rayDir.y, rayDir.z));
+        if(roverBoundingBox.intersect(ray, -100, 100)){
+            return true;
+        }else{
+            roverSelected =false;
+        }
+        
+    }
+    return false;
+}
+
+
 //create path points using the clicks;
 ofVec3f ofApp::doPointSelectionForPath(){
     ofMesh mesh = mars.getMesh(0);
@@ -598,6 +698,33 @@ ofVec3f ofApp::doPointSelectionForPath(){
     return pointSelected;
 }
 
+//
+bool ofApp::checkRoverIsOnPath(){
+    ofVec3f center;
+    Vector3 roverBoxMidPoint =roverBoundingBox.getMidPointOfBox();
+    center.set(roverBoxMidPoint.x(),roverBoxMidPoint.y(),roverBoxMidPoint.z());
+    for(int i=0; i<subPoints.size(); i++){
+        if(checkRoverProximity(i, center)){
+            roverPosition = i;
+            cout<<"rover Position now is "<<i<<endl;
+            return true;
+        }
+    }
+    if(moveForwardDirection)
+        roverPosition=0;
+    else
+        roverPosition = subPoints.size()-1;
+    return false;
+}
+
+bool ofApp::checkRoverProximity(int index, ofVec3f centerPoint){
+    ofPoint currPoint = subPoints[index];
+    float area = roverBoundingBox.boxArea();
+    cout<<"Area is :"<<area<<endl;
+    if(centerPoint[0]+area>currPoint[0] and centerPoint[1]+area>currPoint[1] and centerPoint[2]+area>currPoint[2] and centerPoint[0]-area<currPoint[0] and centerPoint[1]-area<currPoint[1] and centerPoint[2]-area<currPoint[2])
+        return true;
+    return false;
+}
 
 //create subPathofPoints using the path
 
@@ -912,15 +1039,19 @@ void ofApp::dragEvent(ofDragInfo dragInfo) {
         bRoverLoaded = true;
         for(int i =0; i<rover.getNumMeshes(); i++){
             meshDataForRover.push_back(rover.getMesh(i));
-//            roverBoundingBox.push_back(meshBounds(meshDataForRover[i]));
         }
+        updateRoverBox(point);
         setCamerasAfterRoverLoaded();
-//        roverBoundingBox = meshBounds(meshDataForRover[2]);
-        
-//        roverBoundingBox = meshBoundsRover(meshDataForRover);
-//        roverSelected = true;
     }
     else cout << "Error: Can't load model" << dragInfo.files[0] << endl;
+}
+void ofApp::updateRoverBox(ofVec3f point){
+    ofVec3f min = rover.getSceneMin();
+    ofVec3f max = rover.getSceneMax();
+    roverBoundingBox =  Box(Vector3(min.x*0.005 + point.x, min.y*0.005 + point.y, min.z*0.005 + point.z),
+                            Vector3(max.x*0.005 + point.x, max.y*0.005 + point.y, max.z*0.005 + point.z));
+    
+    roverSelected = true;
 }
 void ofApp::setCamerasAfterRoverLoaded(){
     //Set 1st Camera;
@@ -933,31 +1064,54 @@ void ofApp::setCamerasAfterRoverLoaded(){
     temp.setFov(65.5);   // approx equivalent to 28mm in 35mm format
     temp.disableMouseInput();
     
+    
+
     cameras.push_back(temp);
     ofEasyCam cam3;
     cam3.setTarget(rover.getPosition());
     cam3.setDistance(2);
-    cam3.rotate(90, rover.getPosition());
     cam3.setNearClip(.1);
     cam3.setFov(65.5);
     cam3.disableMouseInput();
     cameras.push_back(cam3);
-    
+
     ofEasyCam cam4;
-    ofPoint temp1 = rover.getPosition();
-//    temp1.y = temp1.y-2;
-//    temp1.x = temp1.x;
+    cam4.setTarget(rover.getPosition());
     cam4.setDistance(5);
-//    cam4.rotate(180, -rover.getPosition());
-    cam4.setNearClip(.2);
+    cam4.setNearClip(.5);
     cam4.setFov(65.5);
     cam4.disableMouseInput();
-    cam4.lookAt(rover.getPosition());
-    cam4.setPosition(temp1.x-5, temp1.y, temp1.z+5);
     cameras.push_back(cam4);
+
     
 }
-
+void ofApp::updateCam(){
+    switch(cameraIndex){
+        case 1:
+            if(subPoints.size()>0){
+                if(roverPosition<subPoints.size()-21){
+                    cam.lookAt(subPoints[roverPosition+20]);
+                }else{
+                    cam.lookAt(subPoints[subPoints.size()-1]);
+                }
+            }
+            cam.setPosition(roverBoundingBox.max().x(),roverBoundingBox.max().y(),roverBoundingBox.max().z());
+            break;
+        case 2:
+            if (subPoints.size()>0) {
+                if(roverPosition>20){
+                    cam.lookAt(subPoints[roverPosition-20]);
+                }else{
+                    cam.lookAt(subPoints[0]);
+                }
+            }
+            cam.setPosition(roverBoundingBox.min().x(), roverBoundingBox.max().y(), roverBoundingBox.max().z());
+            break;
+        case 3:
+            cam.lookAt(rover.getPosition());
+            cam.setPosition(roverBoundingBox.max().x()+10,roverBoundingBox.max().y()+10,roverBoundingBox.max().z()+10);
+    }
+}
 bool ofApp::mouseIntersectPlane(ofVec3f planePoint, ofVec3f planeNorm, ofVec3f &point) {
     ofVec2f mouse(mouseX, mouseY);
     ofVec3f rayPoint = cam.screenToWorld(mouse);
